@@ -9,6 +9,10 @@ import pandas as pd
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
+app = Flask(__name__)
+base_dir = os.path.dirname(os.path.abspath(__file__))
+data_dir = os.path.join(base_dir, "data/daily_readings")
+
 @dataclass
 class MeterReading:
     meter_id: str
@@ -565,6 +569,161 @@ def get_areas():
         return jsonify({"error": "Area data file not found"}), 404
     except json.JSONDecodeError:
         return jsonify({"error": "Invalid area data format"}), 500
+
+@app.route("/query")
+def query_page():
+    return render_template("query.html")
+
+@app.route("/validate_meter", methods=["POST"])
+def validate_meter():
+    """Validate if meter ID exists in the system"""
+    try:
+        data = request.get_json()
+        meter_id = data.get("meterId")
+        
+        if not meter_id:
+            return jsonify({"error": "Meter ID is required"}), 400
+            
+        # Check if meter exists in your system
+        # This is a placeholder - implement your actual validation logic
+        if check_meter_exists(meter_id):
+            return jsonify({"success": True}), 200
+        else:
+            return jsonify({"error": "Invalid Meter ID"}), 404
+            
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/query_usage", methods=["GET"])
+def query_usage():
+    try:
+        meter_id = request.args.get("meter_id")
+        time_range = request.args.get("time_range")
+
+        if not meter_id or not time_range:
+            return jsonify({"error": "Meter ID and time range are required"}), 400
+
+        current_date = datetime.datetime.now()
+        
+        # Get date range based on selection
+        dates = get_date_range(time_range, current_date)
+        if not dates:
+            return jsonify({"error": "Invalid time range"}), 400
+
+        # Load and process data
+        all_data = load_meter_data(meter_id, dates)
+        if not all_data:
+            return jsonify({"error": "No data available for the selected period"}), 404
+
+        # Process the data
+        results = process_usage_data(all_data, time_range)
+        
+        return jsonify(results)
+
+    except Exception as e:
+        print(f"Error processing request: {str(e)}")  # For debugging
+        return jsonify({"error": "An error occurred while processing your request"}), 500
+
+def get_date_range(time_range, current_date):
+    """Generate list of dates based on selected time range"""
+    if time_range == "today":
+        return [current_date.strftime("%Y%m%d")]
+    
+    elif time_range == "last_7_days":
+        return [(current_date - datetime.timedelta(days=i)).strftime("%Y%m%d") 
+                for i in range(7)]
+    
+    elif time_range == "this_month":
+        return [current_date.replace(day=i).strftime("%Y%m%d") 
+                for i in range(1, current_date.day + 1)]
+    
+    elif time_range == "last_month":
+        last_month = (current_date.replace(day=1) - datetime.timedelta(days=1))
+        last_month_days = (current_date.replace(day=1) - datetime.timedelta(days=1)).day
+        return [last_month.replace(day=i).strftime("%Y%m%d") 
+                for i in range(1, last_month_days + 1)]
+    
+    return None
+
+def load_meter_data(meter_id, date_list):
+    """Load meter readings from CSV files"""
+    all_readings = []
+    
+    for date_str in date_list:
+        month_folder = date_str[:6]  # YYYYMM
+        file_path = os.path.join(data_dir, month_folder, f"readings_{date_str}.csv")
+        
+        try:
+            if os.path.exists(file_path):
+                df = pd.read_csv(file_path)
+                meter_data = df[df["meter_ID"] == meter_id]
+                if not meter_data.empty:
+                    all_readings.extend(meter_data.values.tolist())
+        except Exception as e:
+            print(f"Error reading file {file_path}: {str(e)}")
+            continue
+    
+    return all_readings
+
+def process_usage_data(all_data, time_range):
+    """Process meter readings into usage data"""
+    try:
+        # Create DataFrame
+        df = pd.DataFrame(all_data, columns=["date", "time", "meter_ID", "meter_value"])
+        
+        # Convert data types
+        df["meter_value"] = pd.to_numeric(df["meter_value"], errors='coerce')
+        df["datetime"] = pd.to_datetime(df["date"] + " " + df["time"])
+        
+        # Sort and calculate usage
+        df.sort_values(by="datetime", inplace=True)
+        df["usage"] = df["meter_value"].diff().fillna(0)
+        
+        # Remove negative values (potential meter resets)
+        df.loc[df["usage"] < 0, "usage"] = 0
+        
+        # Group data based on time range
+        if time_range == "today":
+            df["time_label"] = df["datetime"].dt.strftime("%H:%M")
+            result_df = df.groupby("time_label").agg({
+                "usage": "sum"
+            }).reset_index()
+            x_labels = result_df["time_label"].tolist()
+        else:
+            df["date_label"] = df["datetime"].dt.strftime("%Y-%m-%d")
+            result_df = df.groupby("date_label").agg({
+                "usage": "sum"
+            }).reset_index()
+            x_labels = result_df["date_label"].tolist()
+
+        y_values = result_df["usage"].round(2).tolist()
+        
+        return {
+            "dates": x_labels,
+            "usage": y_values,
+            "total_usage": round(sum(y_values), 2),
+            "average_usage": round(sum(y_values) / len(y_values), 2) if y_values else 0
+        }
+        
+    except Exception as e:
+        print(f"Error processing usage data: {str(e)}")
+        raise
+
+def check_meter_exists(meter_id):
+    """Check if meter ID exists in the system"""
+    # This is a placeholder - implement your actual validation logic
+    try:
+        # Example: Check if meter ID exists in any recent data file
+        current_date = datetime.datetime.now()
+        month_folder = current_date.strftime("%Y%m")
+        file_path = os.path.join(data_dir, month_folder, f"readings_{current_date.strftime('%Y%m%d')}.csv")
+        
+        if os.path.exists(file_path):
+            df = pd.read_csv(file_path)
+            return meter_id in df["meter_ID"].unique()
+        return False
+    except Exception:
+        return False
 
 @app.route('/reset')
 def reset():
