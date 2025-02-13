@@ -9,10 +9,6 @@ import pandas as pd
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
-app = Flask(__name__)
-base_dir = os.path.dirname(os.path.abspath(__file__))
-data_dir = os.path.join(base_dir, "data/daily_readings")
-
 @dataclass
 class MeterReading:
     meter_id: str
@@ -253,7 +249,7 @@ class SmartMeterSystem:
         if not self.daily_cache:
             return
 
-        # 组织数据结构
+        # data structure
         daily_data = {}
         for reading in self.daily_cache:
             meter_id = reading.meter_id
@@ -267,15 +263,14 @@ class SmartMeterSystem:
                 "value": round(reading.meter_value, 3)
             })
 
-        # 生成 JSON 文件路径
+        # Generate JSON file path
         daily_file = self._get_daily_file_path(current_date).replace(".csv", ".json")
         os.makedirs(os.path.dirname(daily_file), exist_ok=True)
 
-        # 保存 JSON 格式数据
         with open(daily_file, "w", encoding="utf-8") as f:
             json.dump(daily_data, f, ensure_ascii=False, indent=2)
 
-        # 清空缓存
+        # Empty Cache
         self.daily_cache.clear()
     
     def _get_daily_file_path(self, date: datetime.datetime) -> str:
@@ -289,30 +284,30 @@ class SmartMeterSystem:
         last_month = first_of_current - datetime.timedelta(days=1)
         last_month_first = last_month.replace(day=1)
 
-        # 归档目标月份（n-2个月前）
+        # Archived target month (n-2 months ago)
         month_to_process = last_month_first - datetime.timedelta(days=1)
         month_to_process = month_to_process.replace(day=1)
 
         if month_to_process < datetime.datetime(2024, 5, 1):
             return
 
-        # 归档目录
+        # Archive Catalogue
         process_month_daily_dir = self.get_month_directory(self.daily_readings_dir, month_to_process)
         process_monthly_file = os.path.join(self.monthly_readings_dir, "month_readings.json")
 
-        # 读取已有 `month_readings.json`
+        # read existed `month_readings.json`
         if os.path.exists(process_monthly_file):
             with open(process_monthly_file, "r", encoding="utf-8") as f:
                 monthly_data = json.load(f)
         else:
             monthly_data = {}
 
-        # 用于存储每个电表的第一天和最后一天的读数
-        first_readings = {}  # {meter_id: 第一日第一个读数}
-        last_readings = {}   # {meter_id: 最后一天最后一个读数}
+        # store the first and last day's readings for each meter
+        first_readings = {} 
+        last_readings = {} 
 
         if os.path.exists(process_month_daily_dir):
-            for daily_file in sorted(os.listdir(process_month_daily_dir)):  # 按日期排序
+            for daily_file in sorted(os.listdir(process_month_daily_dir)):  # order by date
                 if daily_file.endswith(".json"):
                     daily_path = os.path.join(process_month_daily_dir, daily_file)
 
@@ -320,33 +315,33 @@ class SmartMeterSystem:
                         daily_data = json.load(f)
 
                     for meter_id, meter_data in daily_data.items():
-                        readings = sorted(meter_data["readings"], key=lambda x: x["time"])  # 按时间排序
+                        readings = sorted(meter_data["readings"], key=lambda x: x["time"])  # order by time
 
-                        # 记录第一个读数
+                        # first reading
                         if meter_id not in first_readings:
                             first_readings[meter_id] = readings[0]["value"]
 
-                        # 记录最后一个读数
+                        # last reading
                         last_readings[meter_id] = readings[-1]["value"]
 
-        # 计算月用电量
+        # calculate monthly usage
         for meter_id in first_readings.keys():
             if meter_id in last_readings:
                 month_key = month_to_process.strftime("%Y-%m")
                 month_total = last_readings[meter_id] - first_readings[meter_id]
 
-                # 存入 `month_readings.json`
+                # save as `month_readings.json`
                 if meter_id not in monthly_data:
                     monthly_data[meter_id] = {}
 
                 monthly_data[meter_id][month_key] = round(month_total, 3)
 
-        # 保存更新后的 `month_readings.json`
+        # update `month_readings.json`
         os.makedirs(self.monthly_readings_dir, exist_ok=True)
         with open(process_monthly_file, "w", encoding="utf-8") as f:
             json.dump(monthly_data, f, ensure_ascii=False, indent=2)
 
-        # 清除 2 个月前的 `daily_readings`
+        # empty `daily_readings`of 2 months ago
         self._cleanup_old_readings(last_month_first)
 
 
@@ -452,7 +447,7 @@ class SmartMeterSystem:
                     month = int(year_month_dir[4:])
                     dir_date = datetime.datetime(year, month, 1)
 
-                    # 仅删除 2 个月前的数据
+                    # delete data from 2 months ago
                     if dir_date < last_month_first:
                         dir_path = os.path.join(self.daily_readings_dir, year_month_dir)
                         shutil.rmtree(dir_path)
@@ -462,20 +457,20 @@ class SmartMeterSystem:
     def reset_system(self):
         """Reset the entire system to its initial state, clearing all readings and accounts."""
         try:
-            # 清空 `daily_readings` 和 `monthly_readings` 目录
+            # empty `daily_readings` & `monthly_readings` 
             for directory in [self.daily_readings_dir, self.monthly_readings_dir]:
                 if os.path.exists(directory):
                     shutil.rmtree(directory)
                 os.makedirs(directory)
 
-            # 重置账户文件
+            # reset file
             with open(self.accounts_file, 'w', encoding='utf-8') as f:
                 json.dump([], f, ensure_ascii=False, indent=2)
 
-            # 重新设定时间
+            # reset time
             self.save_current_time(datetime.datetime(2024, 5, 1))
 
-            # 清空缓存
+            # empty cache
             self.latest_readings.clear()
             self.daily_cache.clear()
 
@@ -491,6 +486,7 @@ app = Flask(__name__,
     static_folder='static'         # Specify the static files directory
 )
 meter_system = SmartMeterSystem(os.path.dirname(os.path.abspath(__file__)))
+DATA_DIR = "data/daily_readings"
 
 @app.route("/")
 def index():
@@ -584,8 +580,6 @@ def validate_meter():
         if not meter_id:
             return jsonify({"error": "Meter ID is required"}), 400
             
-        # Check if meter exists in your system
-        # This is a placeholder - implement your actual validation logic
         if check_meter_exists(meter_id):
             return jsonify({"success": True}), 200
         else:
@@ -621,44 +615,52 @@ def query_usage():
         return jsonify(results)
 
     except Exception as e:
-        print(f"Error processing request: {str(e)}")  # For debugging
+        print(f"Error processing request: {str(e)}")
         return jsonify({"error": "An error occurred while processing your request"}), 500
 
 def get_date_range(time_range, current_date):
     """Generate list of dates based on selected time range"""
     if time_range == "today":
-        return [current_date.strftime("%Y%m%d")]
+        return [current_date.strftime("%Y-%m-%d")]
     
     elif time_range == "last_7_days":
-        return [(current_date - datetime.timedelta(days=i)).strftime("%Y%m%d") 
+        return [(current_date - datetime.timedelta(days=i)).strftime("%Y-%m-%d") 
                 for i in range(7)]
     
     elif time_range == "this_month":
-        return [current_date.replace(day=i).strftime("%Y%m%d") 
+        return [current_date.replace(day=i).strftime("%Y-%m-%d") 
                 for i in range(1, current_date.day + 1)]
     
     elif time_range == "last_month":
         last_month = (current_date.replace(day=1) - datetime.timedelta(days=1))
         last_month_days = (current_date.replace(day=1) - datetime.timedelta(days=1)).day
-        return [last_month.replace(day=i).strftime("%Y%m%d") 
+        return [last_month.replace(day=i).strftime("%Y-%m-%d") 
                 for i in range(1, last_month_days + 1)]
     
     return None
 
 def load_meter_data(meter_id, date_list):
-    """Load meter readings from CSV files"""
+    """Load meter readings from JSON files"""
     all_readings = []
     
     for date_str in date_list:
-        month_folder = date_str[:6]  # YYYYMM
-        file_path = os.path.join(data_dir, month_folder, f"readings_{date_str}.csv")
+        date_obj = datetime.datetime.strptime(date_str, "%Y-%m-%d")
+        month_folder = date_obj.strftime("%Y%m")
+        file_path = os.path.join(DATA_DIR, month_folder, f"readings_{date_obj.strftime('%Y%m%d')}.json")
         
         try:
             if os.path.exists(file_path):
-                df = pd.read_csv(file_path)
-                meter_data = df[df["meter_ID"] == meter_id]
-                if not meter_data.empty:
-                    all_readings.extend(meter_data.values.tolist())
+                with open(file_path, 'r') as f:
+                    data = json.load(f)
+                    if meter_id in data:
+                        meter_data = data[meter_id]
+                        date = meter_data["date"]
+                        for reading in meter_data["readings"]:
+                            all_readings.append({
+                                "date": date,
+                                "time": reading["time"],
+                                "value": reading["value"]
+                            })
         except Exception as e:
             print(f"Error reading file {file_path}: {str(e)}")
             continue
@@ -668,16 +670,17 @@ def load_meter_data(meter_id, date_list):
 def process_usage_data(all_data, time_range):
     """Process meter readings into usage data"""
     try:
-        # Create DataFrame
-        df = pd.DataFrame(all_data, columns=["date", "time", "meter_ID", "meter_value"])
+        # Convert to DataFrame
+        df = pd.DataFrame(all_data)
         
-        # Convert data types
-        df["meter_value"] = pd.to_numeric(df["meter_value"], errors='coerce')
+        # Create datetime column
         df["datetime"] = pd.to_datetime(df["date"] + " " + df["time"])
         
-        # Sort and calculate usage
+        # Sort by datetime
         df.sort_values(by="datetime", inplace=True)
-        df["usage"] = df["meter_value"].diff().fillna(0)
+        
+        # Calculate usage (difference between consecutive readings)
+        df["usage"] = df["value"].diff().fillna(0)
         
         # Remove negative values (potential meter resets)
         df.loc[df["usage"] < 0, "usage"] = 0
@@ -696,13 +699,13 @@ def process_usage_data(all_data, time_range):
             }).reset_index()
             x_labels = result_df["date_label"].tolist()
 
-        y_values = result_df["usage"].round(2).tolist()
+        y_values = result_df["usage"].round(3).tolist()
         
         return {
             "dates": x_labels,
             "usage": y_values,
-            "total_usage": round(sum(y_values), 2),
-            "average_usage": round(sum(y_values) / len(y_values), 2) if y_values else 0
+            "total_usage": round(sum(y_values), 3),
+            "average_usage": round(sum(y_values) / len(y_values), 3) if y_values else 0
         }
         
     except Exception as e:
@@ -711,16 +714,16 @@ def process_usage_data(all_data, time_range):
 
 def check_meter_exists(meter_id):
     """Check if meter ID exists in the system"""
-    # This is a placeholder - implement your actual validation logic
     try:
-        # Example: Check if meter ID exists in any recent data file
         current_date = datetime.datetime.now()
         month_folder = current_date.strftime("%Y%m")
-        file_path = os.path.join(data_dir, month_folder, f"readings_{current_date.strftime('%Y%m%d')}.csv")
+        file_path = os.path.join(DATA_DIR, month_folder, 
+                                f"readings_{current_date.strftime('%Y%m%d')}.json")
         
         if os.path.exists(file_path):
-            df = pd.read_csv(file_path)
-            return meter_id in df["meter_ID"].unique()
+            with open(file_path, 'r') as f:
+                data = json.load(f)
+                return meter_id in data
         return False
     except Exception:
         return False
