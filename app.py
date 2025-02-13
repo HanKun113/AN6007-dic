@@ -586,6 +586,7 @@ def validate_meter():
             return jsonify({"error": "Invalid Meter ID"}), 404
             
     except Exception as e:
+        print(f"Validation error: {str(e)}")  
         return jsonify({"error": str(e)}), 500
 
 @app.route("/query_usage", methods=["GET"])
@@ -713,19 +714,42 @@ def process_usage_data(all_data, time_range):
         raise
 
 def check_meter_exists(meter_id):
-    """Check if meter ID exists in the system"""
+    """Check if meter ID exists in any recent files"""
     try:
         current_date = datetime.datetime.now()
-        month_folder = current_date.strftime("%Y%m")
-        file_path = os.path.join(DATA_DIR, month_folder, 
-                                f"readings_{current_date.strftime('%Y%m%d')}.json")
         
-        if os.path.exists(file_path):
-            with open(file_path, 'r') as f:
-                data = json.load(f)
-                return meter_id in data
+        for i in range(7):
+            check_date = current_date - datetime.timedelta(days=i)
+            month_folder = check_date.strftime("%Y%m")
+            file_path = os.path.join(DATA_DIR, month_folder, 
+                                   f"readings_{check_date.strftime('%Y%m%d')}.json")
+            
+            print(f"Checking file: {file_path}") 
+            
+            if os.path.exists(file_path):
+                with open(file_path, 'r') as f:
+                    data = json.load(f)
+                    if meter_id in data:
+                        return True
+        
+        month_folder = current_date.strftime("%Y%m")
+        folder_path = os.path.join(DATA_DIR, month_folder)
+        
+        if os.path.exists(folder_path):
+            for filename in os.listdir(folder_path):
+                if filename.endswith('.json'):
+                    file_path = os.path.join(folder_path, filename)
+                    print(f"Checking monthly file: {file_path}") 
+                    
+                    with open(file_path, 'r') as f:
+                        data = json.load(f)
+                        if meter_id in data:
+                            return True
+        
         return False
-    except Exception:
+        
+    except Exception as e:
+        print(f"Error checking meter existence: {str(e)}") 
         return False
 
 @app.route('/reset')
