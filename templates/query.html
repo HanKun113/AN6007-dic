@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Meter Platform - Power Usage Query</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Power Usage Query</h1>
+        
+        <div class="form-container">
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="meterId">Meter ID:</label>
+                    <input 
+                        type="text" 
+                        id="meterId" 
+                        name="meterId" 
+                        class="meter-id-input"
+                        placeholder="Format: 999-999-999"
+                        required
+                        pattern="\d{3}-\d{3}-\d{3}"
+                    >
+                </div>
+                
+                <button type="submit">Login</button>
+            </form>
+        </div>
+
+        <div class="form-container" id="querySection" style="display: none;">
+            <form id="queryForm">
+                <div class="form-group">
+                    <label for="timeRange">Select Time Range:</label>
+                    <select id="timeRange" name="timeRange" required>
+                        <option value="today">Today</option>
+                        <option value="last_7_days">Last 7 days</option>
+                        <option value="this_month">This Month</option>
+                        <option value="last_month">Last Month</option>
+                    </select>
+                </div>
+                
+                <button type="submit">Query Usage</button>
+            </form>
+
+            <div id="chart"></div>
+        </div>
+
+        <div class="note">
+            <h3>Important Information</h3>
+            <ul>
+                <li>Data is collected every 30 minutes throughout the day</li>
+                <li>System data available from May 1st, 2024 onwards</li>
+                <li>Usage is measured in kilowatt-hours (kWh)</li>
+            </ul>
+        </div>
+
+        <button class="home-button" onclick="location.href='/'">Return to Home</button>
+
+        <pre id="queryResult"></pre>
+    </div>
+
+<script>
+    // Store meter ID globally
+    const state = {
+        meterId: null,
+        setMeterId(id) {
+            this.meterId = id;
+        },
+        getMeterId() {
+            return this.meterId;
+        }
+    };
+
+    // Format Meter ID as user types
+    document.getElementById('meterId').addEventListener('input', function(e) {
+        let value = e.target.value.replace(/\D/g, ''); // Remove non-digits
+        if (value.length > 9) value = value.slice(0, 9);
+        
+        // Add hyphens
+        if (value.length >= 6) {
+            value = value.slice(0, 3) + '-' + value.slice(3, 6) + '-' + value.slice(6);
+        } else if (value.length >= 3) {
+            value = value.slice(0, 3) + '-' + value.slice(3);
+        }
+        
+        e.target.value = value;
+    });
+
+    // Validate Meter ID format
+    function validateMeterId(meterId) {
+        const regex = /^\d{3}-\d{3}-\d{3}$/;
+        return regex.test(meterId);
+    }
+
+    // Handle login form submission
+    document.getElementById('loginForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const meterId = document.getElementById('meterId').value;
+        
+        if (!validateMeterId(meterId)) {
+            alert('Please enter a valid Meter ID in the format 999-999-999');
+            document.getElementById('meterId').classList.add('error');
+            return;
+        }
+        
+        document.getElementById('meterId').classList.remove('error');
+        
+        try {
+            const response = await fetch('/validate_meter', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({ meterId })
+            });
+
+            if (!response.ok) {
+                throw new Error('Invalid Meter ID');
+            }
+
+            state.setMeterId(meterId);
+            document.getElementById('querySection').style.display = 'block';
+            document.getElementById('loginForm').style.display = 'none';
+            
+        } catch (err) {
+            alert(err.message);
+            document.getElementById('queryResult').textContent = 'Error: ' + err.message;
+            console.error('Login error:', err);
+        }
+    });
+
+    // Handle query form submission
+    document.getElementById('queryForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const meterId = state.getMeterId();
+        if (!meterId) {
+            alert('Please login first');
+            return;
+        }
+
+        const timeRange = document.getElementById('timeRange').value;
+        
+        try {
+            const response = await fetch(`/query_usage?meter_id=${meterId}&time_range=${timeRange}`);
+            
+            if (!response.ok) {
+                throw new Error('Failed to fetch usage data');
+            }
+
+            const data = await response.json();
+            
+            if (data.error) {
+                throw new Error(data.error);
+            }
+
+            // Create chart using Plotly
+            const lineTrace = {
+                x: data.dates,
+                y: data.usage,
+                type: 'scatter',
+                mode: 'lines+markers',
+                name: 'Electricity Usage (Line)'
+            };
+
+            const barTrace = {
+                x: data.dates,
+                y: data.usage,
+                type: 'bar',
+                name: 'Electricity Usage (Bar)'
+            };
+
+            const layout = {
+                title: 'Power Usage Results',
+                xaxis: { title: 'Time' },
+                yaxis: { title: 'Electricity Usage (kWh)' },
+                responsive: true
+            };
+
+            Plotly.newPlot('chart', [barTrace, lineTrace], layout);
+            
+        } catch (err) {
+            alert(err.message);
+            document.getElementById('queryResult').textContent = 'Error: ' + err.message;
+            console.error('Query error:', err);
+        }
+    });
+</script>
+</body>
+</html>
