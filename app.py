@@ -589,13 +589,51 @@ def validate_meter():
         print(f"Validation error: {str(e)}")  
         return jsonify({"error": str(e)}), 500
 
-@app.route("/query_usage", methods=["GET"])
 def read_current_time():
     """Read current time from JSON file"""
     with open("data/current_time.json", 'r') as f:
         time_data = json.load(f)
-        return datetime.datetime.fromisoformat(time_data["current_time"])
+        current_date = datetime.datetime.fromisoformat(time_data["current_time"])
+        print(f"Current date: {current_date}")  # Debugging
+        return current_date
     
+def check_meter_exists(meter_id):
+    try:
+        current_date = read_current_time()
+        
+        for i in range(7):
+            check_date = current_date - datetime.timedelta(days=i)
+            month_folder = check_date.strftime("%Y%m")
+            file_path = os.path.join(DATA_DIR, month_folder, f"readings_{check_date.strftime('%Y%m%d')}.json")
+            print(f"Checking file: {file_path}") 
+            
+            if os.path.exists(file_path):
+                with open(file_path, 'r') as f:
+                    data = json.load(f)
+                    if meter_id in data:
+                        return True
+        
+        month_folder = current_date.strftime("%Y%m")
+        folder_path = os.path.join(DATA_DIR, month_folder)
+        
+        if os.path.exists(folder_path):
+            for filename in os.listdir(folder_path):
+                if filename.endswith('.json'):
+                    file_path = os.path.join(folder_path, filename)
+                    print(f"Checking monthly file: {file_path}") 
+                    
+                    with open(file_path, 'r') as f:
+                        data = json.load(f)
+                        if meter_id in data:
+                            return True
+        
+        return False
+        
+    except Exception as e:
+        print(f"Error checking meter existence: {str(e)}") 
+        return False
+
+@app.route("/query_usage", methods=["GET"])   
 def query_usage():
     try:
         meter_id = request.args.get("meter_id")
@@ -718,42 +756,7 @@ def process_usage_data(all_data, time_range):
     except Exception as e:
         print(f"Error processing usage data: {str(e)}")
         raise
-   
-def check_meter_exists(meter_id):
-    try:
-        current_date = read_current_time()
-        
-        for i in range(7):
-            check_date = current_date - datetime.timedelta(days=i)
-            month_folder = check_date.strftime("%Y%m")
-            file_path = os.path.join(DATA_DIR, month_folder, f"readings_{check_date.strftime('%Y%m%d')}.json")
-            print(f"Checking file: {file_path}") 
-            
-            if os.path.exists(file_path):
-                with open(file_path, 'r') as f:
-                    data = json.load(f)
-                    if meter_id in data:
-                        return True
-        
-        month_folder = current_date.strftime("%Y%m")
-        folder_path = os.path.join(DATA_DIR, month_folder)
-        
-        if os.path.exists(folder_path):
-            for filename in os.listdir(folder_path):
-                if filename.endswith('.json'):
-                    file_path = os.path.join(folder_path, filename)
-                    print(f"Checking monthly file: {file_path}") 
-                    
-                    with open(file_path, 'r') as f:
-                        data = json.load(f)
-                        if meter_id in data:
-                            return True
-        
-        return False
-        
-    except Exception as e:
-        print(f"Error checking meter existence: {str(e)}") 
-        return False
+
 
 @app.route('/reset')
 def reset():
