@@ -594,7 +594,6 @@ def read_current_time():
     with open("data/current_time.json", 'r') as f:
         time_data = json.load(f)
         current_date = datetime.datetime.fromisoformat(time_data["current_time"])
-        print(f"Current date: {current_date}")  # Debugging
         return current_date
     
 def check_meter_exists(meter_id):
