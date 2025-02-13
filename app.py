@@ -590,6 +590,12 @@ def validate_meter():
         return jsonify({"error": str(e)}), 500
 
 @app.route("/query_usage", methods=["GET"])
+def read_current_time():
+    """Read current time from JSON file"""
+    with open("data/current_time.json", 'r') as f:
+        time_data = json.load(f)
+        return datetime.datetime.fromisoformat(time_data["current_time"])
+    
 def query_usage():
     try:
         meter_id = request.args.get("meter_id")
@@ -598,7 +604,7 @@ def query_usage():
         if not meter_id or not time_range:
             return jsonify({"error": "Meter ID and time range are required"}), 400
 
-        current_date = datetime.datetime.now()
+        current_date = read_current_time()
         
         # Get date range based on selection
         dates = get_date_range(time_range, current_date)
@@ -712,18 +718,15 @@ def process_usage_data(all_data, time_range):
     except Exception as e:
         print(f"Error processing usage data: {str(e)}")
         raise
-
+   
 def check_meter_exists(meter_id):
-    """Check if meter ID exists in any recent files"""
     try:
-        current_date = datetime.datetime.now()
+        current_date = read_current_time()
         
         for i in range(7):
             check_date = current_date - datetime.timedelta(days=i)
             month_folder = check_date.strftime("%Y%m")
-            file_path = os.path.join(DATA_DIR, month_folder, 
-                                   f"readings_{check_date.strftime('%Y%m%d')}.json")
-            
+            file_path = os.path.join(DATA_DIR, month_folder, f"readings_{check_date.strftime('%Y%m%d')}.json")
             print(f"Checking file: {file_path}") 
             
             if os.path.exists(file_path):
