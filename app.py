@@ -8,6 +8,7 @@ import calendar
 import pandas as pd
 from dataclasses import dataclass
 from typing import Dict, List, Optional
+import logging
 
 # ==========================
 # Data Structure Definition
@@ -492,6 +493,7 @@ app = Flask(__name__,
 )
 meter_system = SmartMeterSystem(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = "data/daily_readings"
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 @app.route("/")
 def index():
@@ -695,7 +697,9 @@ def load_meter_data(meter_id, date_list):
     for date_str in date_list:
         date_obj = datetime.datetime.strptime(date_str, "%Y-%m-%d")
         month_folder = date_obj.strftime("%Y%m")
-        file_path = os.path.join(DATA_DIR, month_folder, f"daily_{date_obj.strftime('%Y%m')}_detail.json")
+        file_path = os.path.join(DATA_DIR, "daily_readings", month_folder, f"daily_{month_folder}_detail.json")
+        
+        logging.debug(f"Attempting to load file: {file_path}")
         
         try:
             if os.path.exists(file_path):
@@ -710,11 +714,15 @@ def load_meter_data(meter_id, date_list):
                                 "time": reading["time"],
                                 "value": reading["value"]
                             })
+            else:
+                logging.warning(f"File does not exist: {file_path}")
+        
         except Exception as e:
-            print(f"Error reading file {file_path}: {str(e)}")
+            logging.error(f"Error reading file {file_path}: {str(e)}")
             continue
     
     return all_readings
+
 
 def process_usage_data(all_data, time_range):
     """Process meter readings into usage data"""
@@ -791,7 +799,7 @@ def monthly_history():
             monthly_data_found = False
             
             # Try daily detail file first
-            daily_detail_path = os.path.join(DATA_DIR, month_str, f"daily_{month_str}_detail.json")
+            daily_detail_path = os.path.join(DATA_DIR, "daily_readings", month_str, f"daily_{month_str}_detail.json")
             if os.path.exists(daily_detail_path):
                 with open(daily_detail_path, 'r') as f:
                     data = json.load(f)
@@ -836,8 +844,9 @@ def monthly_history():
         return jsonify(response_data)
 
     except Exception as e:
-        print(f"Error processing monthly history: {str(e)}")
+        logging.error(f"Error processing monthly history: {str(e)}")
         return jsonify({"error": "An error occurred while processing monthly history"}), 500
+
 
 def process_monthly_readings(readings):
     """Process monthly readings from daily detail format"""
