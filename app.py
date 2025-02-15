@@ -695,7 +695,7 @@ def load_meter_data(meter_id, date_list):
     for date_str in date_list:
         date_obj = datetime.datetime.strptime(date_str, "%Y-%m-%d")
         month_folder = date_obj.strftime("%Y%m")
-        file_path = os.path.join(DATA_DIR, month_folder, f"daily_{date_obj.strftime('%Y%m%d')}_detail.json")
+        file_path = os.path.join(DATA_DIR, month_folder, f"daily_{date_obj.strftime('%Y%m')}_detail.json")
         
         try:
             if os.path.exists(file_path):
