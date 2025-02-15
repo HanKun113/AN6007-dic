@@ -242,6 +242,40 @@ class DailyProcessor:
                 "value": round(reading.meter_value, 3)
             })
 
+        yesterday = process_date - datetime.timedelta(days=1)
+        yesterday_file = self.get_daily_file_path(yesterday)
+        yesterday_month_dir = self.directory_manager.get_month_directory(
+            self.directory_manager.daily_readings_dir, yesterday
+        )
+        yesterday_monthly_file = os.path.join(
+            yesterday_month_dir, 
+            f"daily_{yesterday.strftime('%Y%m')}_detail.json"
+        )
+
+        monthly_data = {}
+        if os.path.exists(yesterday_monthly_file):
+            with open(yesterday_monthly_file, "r", encoding="utf-8") as f:
+                try:
+                    monthly_data = json.load(f)
+                except json.JSONDecodeError:
+                    monthly_data = {}
+
+        if os.path.exists(yesterday_file):
+            with open(yesterday_file, "r", encoding="utf-8") as f:
+                try:
+                    yesterday_data = json.load(f)
+                    for meter_id, meter_data in yesterday_data.items():
+                        if meter_id not in monthly_data:
+                            monthly_data[meter_id] = []
+                        monthly_data[meter_id].append(meter_data)
+                    os.remove(yesterday_file)
+                except json.JSONDecodeError:
+                    pass
+
+        os.makedirs(os.path.dirname(yesterday_monthly_file), exist_ok=True)
+        with open(yesterday_monthly_file, "w", encoding="utf-8") as f:
+            json.dump(monthly_data, f, ensure_ascii=False, indent=2)
+
         daily_file = self.get_daily_file_path(process_date)
         os.makedirs(os.path.dirname(daily_file), exist_ok=True)
         with open(daily_file, "w", encoding="utf-8") as f:
@@ -254,9 +288,6 @@ class DailyProcessor:
         return os.path.join(month_dir, f"readings_{date.strftime('%Y%m%d')}.json")
     
     def process_all(self, daily_cache: List[MeterReading]):
-        """
-        Group daily_cache by date and archive data for each day separately
-        """
         if not daily_cache:
             return
         
@@ -281,82 +312,118 @@ class MonthlyProcessor:
 
     def archive(self, current_date: datetime.datetime):
         """
-        Archive monthly data and clean old daily data
-        - Archive: Data from two months ago
-        - Retain: Current month and previous month's daily data
+        Archive monthly data by processing daily_YYYYMM_detail.json from previous month
+        Store monthly summary in year directories under month_readings
         """
+        # Calculate dates
         first_of_current = current_date.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         last_month = first_of_current - datetime.timedelta(days=1)
         last_month_first = last_month.replace(day=1)
-        month_to_process = last_month_first - datetime.timedelta(days=1)
-        month_to_process = month_to_process.replace(day=1)
         
-        if month_to_process < datetime.datetime(2024, 5, 1):
+        # Skip if before system start date
+        if last_month_first < datetime.datetime(2024, 5, 1):
             return
 
-        process_month_dir = self.directory_manager.get_month_directory(
-            self.directory_manager.daily_readings_dir, month_to_process
+        # Get paths
+        last_month_dir = self.directory_manager.get_month_directory(
+            self.directory_manager.daily_readings_dir,
+            last_month_first
         )
-        process_monthly_file = os.path.join(self.directory_manager.monthly_readings_dir, "month_readings.json")
+        last_month_detail_file = os.path.join(
+            last_month_dir,
+            f"daily_{last_month_first.strftime('%Y%m')}_detail.json"
+        )
         
-        if os.path.exists(process_monthly_file):
-            with open(process_monthly_file, "r", encoding="utf-8") as f:
-                monthly_data = json.load(f)
-        else:
-            monthly_data = {}
+        # Create year directory in month_readings
+        year_dir = os.path.join(
+            self.directory_manager.monthly_readings_dir,
+            last_month_first.strftime("%Y")
+        )
+        os.makedirs(year_dir, exist_ok=True)
+        
+        # Monthly summary file path now includes year directory
+        monthly_summary_file = os.path.join(
+            year_dir,
+            f"month_readings_{last_month_first.strftime('%Y%m')}.json"
+        )
 
-        first_readings = {}
-        last_readings = {}
+        # Read and process daily detail file
+        if os.path.exists(last_month_detail_file):
+            try:
+                with open(last_month_detail_file, "r", encoding="utf-8") as f:
+                    detail_data = json.load(f)
+                
+                monthly_data = {}
 
-        if os.path.exists(process_month_dir):
-            for daily_file in sorted(os.listdir(process_month_dir)):
-                if daily_file.endswith(".json"):
-                    daily_path = os.path.join(process_month_dir, daily_file)
-                    with open(daily_path, 'r', encoding='utf-8') as f:
-                        daily_data = json.load(f)
-                    for meter_id, meter_data in daily_data.items():
-                        readings = sorted(meter_data["readings"], key=lambda x: x["time"])
-                        if meter_id not in first_readings:
-                            first_readings[meter_id] = readings[0]["value"]
-                        last_readings[meter_id] = readings[-1]["value"]
+                # Process each meter's data
+                for meter_id, daily_readings in detail_data.items():
+                    # Sort all readings by date for this meter
+                    all_readings = []
+                    for day_data in daily_readings:
+                        date = day_data["date"]
+                        for reading in day_data["readings"]:
+                            all_readings.append({
+                                "datetime": f"{date} {reading['time']}",
+                                "date": date,
+                                "time": reading["time"],
+                                "value": reading["value"]
+                            })
+                    
+                    if all_readings:
+                        # Sort readings by datetime
+                        all_readings.sort(key=lambda x: x["datetime"])
+                        
+                        # Keep only first and last readings
+                        month_key = last_month_first.strftime("%Y-%m")
+                        if meter_id not in monthly_data:
+                            monthly_data[meter_id] = {}
+                        
+                        # Store first and last readings in the requested format
+                        monthly_data[meter_id][month_key] = {
+                            "readings": [
+                                {
+                                    "date": all_readings[0]["date"],
+                                    "time": all_readings[0]["time"],
+                                    "value": all_readings[0]["value"]
+                                },
+                                {
+                                    "date": all_readings[-1]["date"],
+                                    "time": all_readings[-1]["time"],
+                                    "value": all_readings[-1]["value"]
+                                }
+                            ]
+                        }
 
-        for meter_id in first_readings.keys():
-            if meter_id in last_readings:
-                month_key = month_to_process.strftime("%Y-%m")
-                month_total = last_readings[meter_id] - first_readings[meter_id]
-                if meter_id not in monthly_data:
-                    monthly_data[meter_id] = {}
-                monthly_data[meter_id][month_key] = round(month_total, 3)
+                # Save monthly summary
+                os.makedirs(os.path.dirname(monthly_summary_file), exist_ok=True)
+                with open(monthly_summary_file, "w", encoding="utf-8") as f:
+                    json.dump(monthly_data, f, ensure_ascii=False, indent=2)
 
-        os.makedirs(self.directory_manager.monthly_readings_dir, exist_ok=True)
-        with open(process_monthly_file, "w", encoding="utf-8") as f:
-            json.dump(monthly_data, f, ensure_ascii=False, indent=2)
+            except Exception as e:
+                print(f"Error processing monthly archive: {str(e)}")
 
-        self._cleanup_old_readings(last_month_first)
+        # Clean up old readings
+        self._cleanup_old_readings(first_of_current)
 
     def _cleanup_old_readings(self, current_month_first: datetime.datetime):
         """
-        Clean daily data, keeping only the most recent two months
-        param current_month_first: First day of current month
-        Keep: Current month and previous month's data
-        Delete: Earlier data
+        Clean daily data by directly removing the folder of two months ago.
+        param current_month_first: First day of current month (e.g., if processing May data in June, this would be June 1st)
         """
-        if os.path.exists(self.directory_manager.daily_readings_dir):
-            # Calculate first day of previous month (earliest date to keep)
-            earliest_keep_date = current_month_first - datetime.timedelta(days=1)  # Last day of previous month
-            earliest_keep_date = earliest_keep_date.replace(day=1)  # First day of previous month
-
-            for year_month_dir in os.listdir(self.directory_manager.daily_readings_dir):
-                try:
-                    year = int(year_month_dir[:4])
-                    month = int(year_month_dir[4:])
-                    dir_date = datetime.datetime(year, month, 1)
-                    # Delete data earlier than previous month
-                    if dir_date < earliest_keep_date:
-                        dir_path = os.path.join(self.directory_manager.daily_readings_dir, year_month_dir)
-                        shutil.rmtree(dir_path)
-                except ValueError:
-                    continue
+        # Calculate two months ago date
+        two_months_ago = current_month_first - datetime.timedelta(days=1)  # Last day of previous month
+        two_months_ago = two_months_ago.replace(day=1)  # First day of previous month
+        two_months_ago = two_months_ago - datetime.timedelta(days=1)  # Last day of two months ago
+        two_months_ago = two_months_ago.replace(day=1)  # First day of two months ago
+        
+        # Get the folder name to delete
+        folder_to_delete = two_months_ago.strftime('%Y%m')
+        folder_path = os.path.join(self.directory_manager.daily_readings_dir, folder_to_delete)
+        
+        # Delete if exists
+        if os.path.exists(folder_path):
+            shutil.rmtree(folder_path)
+            print(f"Deleted folder: {folder_to_delete}")  # Debug log
 
 # ==========================
 # Smart Meter System: Facade class combining all modules
@@ -456,7 +523,7 @@ def register():
 
 @app.route("/current_time", methods=["GET"])
 def get_current_time():
-    current_time = meter_system.get_current_time()
+    current_time = meter_system.time_manager.get_current_time()
     return jsonify({
         "Current Simulation Time": {
             "Date": current_time.strftime("%Y-%m-%d"),
