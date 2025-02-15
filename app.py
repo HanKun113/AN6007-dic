@@ -600,7 +600,7 @@ def read_current_time():
         time_data = json.load(f)
         current_date = datetime.datetime.fromisoformat(time_data["current_time"])
         return current_date
-    
+
 def check_meter_exists(meter_id):
     try:
         current_date = read_current_time()
@@ -760,6 +760,125 @@ def process_usage_data(all_data, time_range):
     except Exception as e:
         print(f"Error processing usage data: {str(e)}")
         raise
+
+@app.route("/monthly_history")
+def monthly_history():
+    """Get monthly usage history for a meter"""
+    try:
+        meter_id = request.args.get("meter_id")
+        if not meter_id:
+            return jsonify({"error": "Meter ID is required"}), 400
+
+        current_date = read_current_time()
+        monthly_data = []
+        
+        # Get list of months to process
+        months = []
+        current_month = current_date.replace(day=1)
+        
+        # Go back up to 12 months
+        for i in range(12):
+            check_month = current_month - datetime.relativedelta(months=i)
+            if check_month.year >= 2024 and check_month.month >= 5:  # Only process from May 2024
+                months.append(check_month)
+        
+        # Process each month
+        for month in months:
+            month_str = month.strftime("%Y%m")
+            year_str = month.strftime("%Y")
+            
+            # Try different file patterns
+            monthly_data_found = False
+            
+            # Try daily detail file first
+            daily_detail_path = os.path.join(DATA_DIR, month_str, f"daily_{month_str}_detail.json")
+            if os.path.exists(daily_detail_path):
+                with open(daily_detail_path, 'r') as f:
+                    data = json.load(f)
+                    if meter_id in data:
+                        readings = data[meter_id]
+                        monthly_usage = process_monthly_readings(readings)
+                        if monthly_usage is not None:
+                            monthly_data.append({
+                                'month': month.strftime("%Y-%m"),
+                                'usage': monthly_usage,
+                                'days': len(readings)
+                            })
+                            monthly_data_found = True
+            
+            # If not found in daily detail, check month readings file
+            if not monthly_data_found:
+                month_readings_path = os.path.join(DATA_DIR, "month_readings", year_str, f"month_readings_{month_str}.json")
+                if os.path.exists(month_readings_path):
+                    with open(month_readings_path, 'r') as f:
+                        data = json.load(f)
+                        if meter_id in data and year_str in data[meter_id]:
+                            readings = data[meter_id][year_str]["readings"]
+                            monthly_usage = process_monthly_readings_from_range(readings)
+                            if monthly_usage is not None:
+                                days_in_month = calendar.monthrange(month.year, month.month)[1]
+                                monthly_data.append({
+                                    'month': month.strftime("%Y-%m"),
+                                    'usage': monthly_usage,
+                                    'days': days_in_month
+                                })
+
+        # Sort by month
+        monthly_data.sort(key=lambda x: x['month'])
+        
+        # Prepare response data
+        response_data = {
+            'months': [item['month'] for item in monthly_data],
+            'usage': [item['usage'] for item in monthly_data],
+            'days': [item['days'] for item in monthly_data]
+        }
+        
+        return jsonify(response_data)
+
+    except Exception as e:
+        print(f"Error processing monthly history: {str(e)}")
+        return jsonify({"error": "An error occurred while processing monthly history"}), 500
+
+def process_monthly_readings(readings):
+    """Process monthly readings from daily detail format"""
+    try:
+        if not readings:
+            return None
+        
+        # Sort readings by date
+        readings.sort(key=lambda x: x['date'])
+        
+        # Get first and last readings of the month
+        first_day = readings[0]
+        last_day = readings[-1]
+        
+        first_reading = min(first_day['readings'], key=lambda x: x['time'])['value']
+        last_reading = max(last_day['readings'], key=lambda x: x['time'])['value']
+        
+        return round(last_reading - first_reading, 3)
+        
+    except Exception as e:
+        print(f"Error processing monthly readings: {str(e)}")
+        return None
+
+def process_monthly_readings_from_range(readings):
+    """Process monthly readings from month readings format"""
+    try:
+        if not readings or len(readings) < 2:
+            return None
+            
+        # Sort readings by date and time
+        readings.sort(key=lambda x: (x['date'], x['time']))
+        
+        # Calculate usage from first to last reading
+        first_reading = readings[0]['value']
+        last_reading = readings[-1]['value']
+        
+        return round(last_reading - first_reading, 3)
+        
+    except Exception as e:
+        print(f"Error processing monthly readings from range: {str(e)}")
+        return None
 
 
 @app.route('/reset')

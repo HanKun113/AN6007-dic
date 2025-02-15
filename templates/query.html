@@ -45,7 +45,27 @@
                 <button type="submit">Query Usage</button>
             </form>
         </div>
+        
         <div id="chart"></div>
+        
+        <!-- New Monthly History Section -->
+        <div id="monthlyHistorySection" style="display: none; margin-top: 30px;">
+            <h2>Monthly Usage History</h2>
+            <div id="monthlyChart"></div>
+            <div id="monthlyTable" class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Month</th>
+                            <th>Total Usage (kWh)</th>
+                            <th>Average Daily Usage (kWh)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="monthlyTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+
         <div class="note">
             <h3>Important Information</h3>
             <ul>
@@ -72,12 +92,11 @@
         }
     };
 
-    // Format Meter ID as user types
+    // Format Meter ID as user types (unchanged)
     document.getElementById('meterId').addEventListener('input', function(e) {
-        let value = e.target.value.replace(/\D/g, ''); // Remove non-digits
+        let value = e.target.value.replace(/\D/g, '');
         if (value.length > 9) value = value.slice(0, 9);
         
-        // Add hyphens
         if (value.length >= 6) {
             value = value.slice(0, 3) + '-' + value.slice(3, 6) + '-' + value.slice(6);
         } else if (value.length >= 3) {
@@ -87,7 +106,7 @@
         e.target.value = value;
     });
 
-    // Validate Meter ID format
+    // Validate Meter ID format (unchanged)
     function validateMeterId(meterId) {
         const regex = /^\d{3}-\d{3}-\d{3}$/;
         return regex.test(meterId);
@@ -123,7 +142,11 @@
 
             state.setMeterId(meterId);
             document.getElementById('querySection').style.display = 'block';
+            document.getElementById('monthlyHistorySection').style.display = 'block';
             document.getElementById('loginForm').style.display = 'none';
+            
+            // Fetch monthly history after successful login
+            await fetchMonthlyHistory(meterId);
             
         } catch (err) {
             alert(err.message);
@@ -132,7 +155,60 @@
         }
     });
 
-    // Handle query form submission
+    // New function to fetch monthly history
+    async function fetchMonthlyHistory(meterId) {
+        try {
+            const response = await fetch(`/monthly_history?meter_id=${meterId}`);
+            
+            if (!response.ok) {
+                throw new Error('Failed to fetch monthly history');
+            }
+
+            const data = await response.json();
+            
+            if (data.error) {
+                throw new Error(data.error);
+            }
+
+            // Create monthly history chart
+            const monthlyTrace = {
+                x: data.months,
+                y: data.usage,
+                type: 'bar',
+                name: 'Monthly Usage'
+            };
+
+            const layout = {
+                title: 'Monthly Power Usage History',
+                xaxis: { title: 'Month' },
+                yaxis: { title: 'Total Usage (kWh)' },
+                responsive: true
+            };
+
+            Plotly.newPlot('monthlyChart', [monthlyTrace], layout);
+
+            // Populate monthly history table
+            const tableBody = document.getElementById('monthlyTableBody');
+            tableBody.innerHTML = '';
+            
+            data.months.forEach((month, index) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${month}</td>
+                    <td>${data.usage[index].toFixed(3)}</td>
+                    <td>${(data.usage[index] / data.days[index]).toFixed(3)}</td>
+                `;
+                tableBody.appendChild(row);
+            });
+            
+        } catch (err) {
+            console.error('Monthly history error:', err);
+            document.getElementById('monthlyHistorySection').innerHTML += 
+                `<p class="error">Error loading monthly history: ${err.message}</p>`;
+        }
+    }
+
+    // Handle query form submission (unchanged)
     document.getElementById('queryForm').addEventListener('submit', async function(e) {
         e.preventDefault();
         
@@ -157,7 +233,6 @@
                 throw new Error(data.error);
             }
 
-            // Create chart using Plotly
             const lineTrace = {
                 x: data.dates,
                 y: data.usage,
