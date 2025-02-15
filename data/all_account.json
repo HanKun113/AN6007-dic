@@ -10,5 +10,29 @@
     "area": "Jurong East",
     "dwelling": "5",
     "register_time": "2024-05-01T00:00:00"
+  },
+  {
+    "meter_ID": "999-999-999",
+    "area": "Changi",
+    "dwelling": "2",
+    "register_time": "2024-08-11T12:00:00"
+  },
+  {
+    "meter_ID": "444-444-444",
+    "area": "Choa Chu Kang",
+    "dwelling": "3",
+    "register_time": "2024-08-12T12:00:00"
+  },
+  {
+    "meter_ID": "222-222-222",
+    "area": "Sembawang",
+    "dwelling": "2",
+    "register_time": "2024-08-13T12:00:00"
+  },
+  {
+    "meter_ID": "000-000-000",
+    "area": "Pasir Ris",
+    "dwelling": "2",
+    "register_time": "2024-08-13T12:00:00"
   }
 ]

@@ -71,8 +71,6 @@
         </div>
 
         <button class="home-button" onclick="location.href='/'">Return to Home</button>
-
-        <pre id="registerResult"></pre>
     </div>
 
 <script>
@@ -98,7 +96,7 @@
             state.setAreaData(data.areas || []);
         } catch (error) {
             console.error('Error loading area data:', error);
-            document.getElementById('registerResult').textContent = 'Error: Failed to load area data. Please try again later.';
+            alert('Error: Failed to load area data. Please try again later.');
         }
     }
 
@@ -198,17 +196,6 @@
                 requestData.area = selectedArea.area;
             }
 
-            // Log request details
-            console.log('Request details:', {
-                url: '/register',
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                },
-                data: requestData
-            });
-            
             const response = await fetch('/register', {
                 method: 'POST',
                 headers: {
@@ -217,9 +204,6 @@
                 },
                 body: JSON.stringify(requestData)
             });
-
-            // Log response details
-            console.log('Response status:', response.status);
             
             if (!response.ok) {
                 const contentType = response.headers.get('content-type');
@@ -232,30 +216,20 @@
                     errorMessage = await response.text();
                 }
                 
-                console.log('Error details:', {
-                    status: response.status,
-                    message: errorMessage
-                });
-                
                 throw new Error(errorMessage);
             }
 
             const data = await response.json();
             
             if (data.success) {
-                alert('Registration successful!');
-                document.getElementById('registerResult').textContent = 
-                    'Registration successful! Details: ' + 
-                    Object.entries(data)
-                        .map(([key, value]) => `${key}: ${value}`)
-                        .join(', ');
+                let successMessage = 'Registration successful!';
+                alert(successMessage);
                 this.reset();
             } else {
                 throw new Error(data.message || 'Registration failed. Please try again.');
             }
         } catch (err) {
-            alert(err.message);
-            document.getElementById('registerResult').textContent = 'Error: ' + err.message;
+            alert('Error: ' + err.message);
             console.error('Registration error:', err);
         }
     });

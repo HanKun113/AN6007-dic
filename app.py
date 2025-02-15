@@ -605,38 +605,18 @@ def read_current_time():
 
 def check_meter_exists(meter_id):
     try:
-        current_date = read_current_time()
+        accounts_file = meter_system.directory_manager.accounts_file
         
-        for i in range(7):
-            check_date = current_date - datetime.timedelta(days=i)
-            month_folder = check_date.strftime("%Y%m")
-            file_path = os.path.join(DATA_DIR, month_folder, f"readings_{check_date.strftime('%Y%m%d')}.json")
-            print(f"Checking file: {file_path}") 
+        if os.path.exists(accounts_file):
+            with open(accounts_file, 'r') as f:
+                accounts = json.load(f)
+                return any(account['meter_ID'] == meter_id for account in accounts)
+        else:
+            print(f"Account file not found: {accounts_file}")
+            return False
             
-            if os.path.exists(file_path):
-                with open(file_path, 'r') as f:
-                    data = json.load(f)
-                    if meter_id in data:
-                        return True
-        
-        month_folder = current_date.strftime("%Y%m")
-        folder_path = os.path.join(DATA_DIR, month_folder)
-        
-        if os.path.exists(folder_path):
-            for filename in os.listdir(folder_path):
-                if filename.endswith('.json'):
-                    file_path = os.path.join(folder_path, filename)
-                    print(f"Checking monthly file: {file_path}") 
-                    
-                    with open(file_path, 'r') as f:
-                        data = json.load(f)
-                        if meter_id in data:
-                            return True
-        
-        return False
-        
     except Exception as e:
-        print(f"Error checking meter existence: {str(e)}") 
+        print(f"Error checking meter existence: {str(e)}")
         return False
 
 @app.route("/query_usage")
