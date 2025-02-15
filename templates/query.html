@@ -4,120 +4,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Smart Meter Platform - Power Usage Query</title>
+    <link rel="stylesheet" href="/static/styles.css">
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-    <style>
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-            font-family: Arial, sans-serif;
-        }
-
-        .form-container {
-            background-color: #f5f5f5;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-        }
-
-        .form-group {
-            margin-bottom: 15px;
-        }
-
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-        }
-
-        input, select {
-            width: 100%;
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 14px;
-        }
-
-        button {
-            background-color: #007bff;
-            color: white;
-            padding: 10px 20px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-        }
-
-        button:hover {
-            background-color: #0056b3;
-        }
-
-        .home-button {
-            background-color: #6c757d;
-            margin-top: 20px;
-        }
-
-        .home-button:hover {
-            background-color: #545b62;
-        }
-
-        .table-container {
-            margin-top: 20px;
-            overflow-x: auto;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            background-color: white;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-
-        th, td {
-            padding: 12px 15px;
-            text-align: left;
-            border-bottom: 1px solid #ddd;
-        }
-
-        th {
-            background-color: #f8f9fa;
-            font-weight: bold;
-            color: #495057;
-        }
-
-        tr:hover {
-            background-color: #f5f5f5;
-        }
-
-        .note {
-            background-color: #f8f9fa;
-            padding: 15px;
-            border-radius: 8px;
-            margin-top: 30px;
-        }
-
-        .note h3 {
-            margin-top: 0;
-            color: #495057;
-        }
-
-        .note ul {
-            margin: 0;
-            padding-left: 20px;
-        }
-
-        .error {
-            color: #dc3545;
-            margin-top: 10px;
-        }
-
-        #chart, #monthlyChart {
-            margin-top: 20px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            padding: 15px;
-        }
-    </style>
 </head>
 <body>
     <div class="container">
@@ -160,6 +48,7 @@
         
         <div id="chart"></div>
         
+        <!-- New Monthly History Section -->
         <div id="monthlyHistorySection" style="display: none; margin-top: 30px;">
             <h2>Monthly Usage History</h2>
             <div id="monthlyChart"></div>
@@ -192,8 +81,81 @@
     </div>
 
 <script>
-    // Previous JavaScript code remains the same until fetchMonthlyHistory function
+    // Store meter ID globally
+    const state = {
+        meterId: null,
+        setMeterId(id) {
+            this.meterId = id;
+        },
+        getMeterId() {
+            return this.meterId;
+        }
+    };
 
+    // Format Meter ID as user types (unchanged)
+    document.getElementById('meterId').addEventListener('input', function(e) {
+        let value = e.target.value.replace(/\D/g, '');
+        if (value.length > 9) value = value.slice(0, 9);
+        
+        if (value.length >= 6) {
+            value = value.slice(0, 3) + '-' + value.slice(3, 6) + '-' + value.slice(6);
+        } else if (value.length >= 3) {
+            value = value.slice(0, 3) + '-' + value.slice(3);
+        }
+        
+        e.target.value = value;
+    });
+
+    // Validate Meter ID format (unchanged)
+    function validateMeterId(meterId) {
+        const regex = /^\d{3}-\d{3}-\d{3}$/;
+        return regex.test(meterId);
+    }
+
+    // Handle login form submission
+    document.getElementById('loginForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const meterId = document.getElementById('meterId').value;
+        
+        if (!validateMeterId(meterId)) {
+            alert('Please enter a valid Meter ID in the format 999-999-999');
+            document.getElementById('meterId').classList.add('error');
+            return;
+        }
+        
+        document.getElementById('meterId').classList.remove('error');
+        
+        try {
+            const response = await fetch('/validate_meter', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({ meterId })
+            });
+
+            if (!response.ok) {
+                throw new Error('Invalid Meter ID');
+            }
+
+            state.setMeterId(meterId);
+            document.getElementById('querySection').style.display = 'block';
+            document.getElementById('monthlyHistorySection').style.display = 'block';
+            document.getElementById('loginForm').style.display = 'none';
+            
+            // Fetch monthly history after successful login
+            await fetchMonthlyHistory(meterId);
+            
+        } catch (err) {
+            alert(err.message);
+            document.getElementById('queryResult').textContent = 'Error: ' + err.message;
+            console.error('Login error:', err);
+        }
+    });
+
+    // New function to fetch monthly history
     async function fetchMonthlyHistory(meterId) {
         try {
             const response = await fetch(`/monthly_history?meter_id=${meterId}`);
@@ -208,47 +170,28 @@
                 throw new Error(data.error);
             }
 
-            // Format months for better display
-            const formattedMonths = data.months.map(month => {
-                const [year, monthNum] = month.split('-');
-                const date = new Date(year, parseInt(monthNum) - 1);
-                return date.toLocaleString('default', { month: 'long', year: 'numeric' });
-            });
-
-            // Create monthly history chart with formatted months
+            // Create monthly history chart
             const monthlyTrace = {
-                x: formattedMonths,
+                x: data.months,
                 y: data.usage,
                 type: 'bar',
-                name: 'Monthly Usage',
-                marker: {
-                    color: '#007bff'
-                }
+                name: 'Monthly Usage'
             };
 
             const layout = {
                 title: 'Monthly Power Usage History',
-                xaxis: { 
-                    title: 'Month',
-                    tickangle: -45
-                },
-                yaxis: { 
-                    title: 'Total Usage (kWh)',
-                    tickformat: '.3f'
-                },
-                margin: {
-                    b: 100  // Increase bottom margin for rotated labels
-                },
+                xaxis: { title: 'Month' },
+                yaxis: { title: 'Total Usage (kWh)' },
                 responsive: true
             };
 
             Plotly.newPlot('monthlyChart', [monthlyTrace], layout);
 
-            // Populate monthly history table with formatted months
+            // Populate monthly history table
             const tableBody = document.getElementById('monthlyTableBody');
             tableBody.innerHTML = '';
             
-            formattedMonths.forEach((month, index) => {
+            data.months.forEach((month, index) => {
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td>${month}</td>
@@ -265,7 +208,61 @@
         }
     }
 
-    // Rest of the JavaScript code remains the same
+    // Handle query form submission (unchanged)
+    document.getElementById('queryForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const meterId = state.getMeterId();
+        if (!meterId) {
+            alert('Please login first');
+            return;
+        }
+
+        const timeRange = document.getElementById('timeRange').value;
+        
+        try {
+            const response = await fetch(`/query_usage?meter_id=${meterId}&time_range=${timeRange}`);
+            
+            if (!response.ok) {
+                throw new Error('Failed to fetch usage data');
+            }
+
+            const data = await response.json();
+            
+            if (data.error) {
+                throw new Error(data.error);
+            }
+
+            const lineTrace = {
+                x: data.dates,
+                y: data.usage,
+                type: 'scatter',
+                mode: 'lines+markers',
+                name: 'Electricity Usage (Line)'
+            };
+
+            const barTrace = {
+                x: data.dates,
+                y: data.usage,
+                type: 'bar',
+                name: 'Electricity Usage (Bar)'
+            };
+
+            const layout = {
+                title: 'Power Usage Results',
+                xaxis: { title: 'Time' },
+                yaxis: { title: 'Electricity Usage (kWh)' },
+                responsive: true
+            };
+
+            Plotly.newPlot('chart', [barTrace, lineTrace], layout);
+            
+        } catch (err) {
+            alert(err.message);
+            document.getElementById('queryResult').textContent = 'Error: ' + err.message;
+            console.error('Query error:', err);
+        }
+    });
 </script>
 </body>
 </html>
