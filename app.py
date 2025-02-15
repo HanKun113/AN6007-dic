@@ -695,7 +695,7 @@ def load_meter_data(meter_id, date_list):
     for date_str in date_list:
         date_obj = datetime.datetime.strptime(date_str, "%Y-%m-%d")
         month_folder = date_obj.strftime("%Y%m")
-        file_path = os.path.join(DATA_DIR, month_folder, f"readings_{date_obj.strftime('%Y%m%d')}.json")
+        file_path = os.path.join(DATA_DIR, month_folder, f"daily_{date_obj.strftime('%Y%m%d')}_detail.json")
         
         try:
             if os.path.exists(file_path):
@@ -808,7 +808,7 @@ def monthly_history():
             
             # If not found in daily detail, check month readings file
             if not monthly_data_found:
-                month_readings_path = os.path.join(DATA_DIR, "month_readings", year_str, f"month_readings_{month_str}.json")
+                month_readings_path = os.path.join("data/month_readings", year_str, f"month_readings_{month_str}.json")
                 if os.path.exists(month_readings_path):
                     with open(month_readings_path, 'r') as f:
                         data = json.load(f)
