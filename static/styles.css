@@ -264,3 +264,35 @@ select:disabled {
 .meter-id-input.error {
     border-color: #dc2626;
 }
+
+.stats-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);  
+    gap: 1rem;                              
+}
+
+.stat-card {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+    width: 200px;
+    height:auto;
+}
+.stat-title {
+    color: #4a5568;
+    font-size: 0.875rem;
+    margin-bottom: 0.5rem;
+}
+.stat-value {
+    color: #1a202c;
+    font-size: 1.5rem;
+    font-weight: 600;
+}

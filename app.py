@@ -282,6 +282,7 @@ class DailyProcessor:
         with open(daily_file, "w", encoding="utf-8") as f:
             json.dump(daily_data, f, ensure_ascii=False, indent=2)
 
+
     def get_daily_file_path(self, date: datetime.datetime) -> str:
         month_dir = self.directory_manager.get_month_directory(
             self.directory_manager.daily_readings_dir, date
@@ -451,15 +452,37 @@ class SmartMeterSystem:
     def collect_readings(self, increment_unit: str = 'days', increment_value: int = 1) -> dict:
         # Record current time before collection
         old_time = self.time_manager.get_current_time()
+        
+        # Collect new readings
         result = self.reading_generator.collect(increment_unit, increment_value)
-        # Archive daily_cache data by date
-        self.daily_processor.process_all(self.reading_generator.daily_cache)
-        # Clear cache
-        self.reading_generator.daily_cache.clear()
         new_time = datetime.datetime.fromisoformat(result["new_time"])
-        # If month changes during collection, trigger archiving (archive data from two months ago)
+        
+        # If day changes during collection
+        if old_time.date() != new_time.date():
+            # Get all completed days (excluding the current day)
+            readings_by_date = {}
+            for reading in self.reading_generator.daily_cache:
+                reading_date = datetime.datetime.fromisoformat(reading.reading_time).date()
+                # Only process readings from completed days
+                if reading_date < new_time.date():
+                    if reading_date not in readings_by_date:
+                        readings_by_date[reading_date] = []
+                    readings_by_date[reading_date].append(reading)
+            
+            # Process each completed day
+            for date, readings in readings_by_date.items():
+                self.daily_processor.process(readings, datetime.datetime.combine(date, datetime.time()))
+            
+            # Keep only current day's readings in the cache
+            self.reading_generator.daily_cache = [
+                reading for reading in self.reading_generator.daily_cache
+                if datetime.datetime.fromisoformat(reading.reading_time).date() == new_time.date()
+            ]
+        
+        # If month changes during collection
         if old_time.month != new_time.month:
             self.monthly_processor.archive(new_time)
+        
         return result
 
     def reset_system(self) -> bool:
@@ -573,6 +596,7 @@ def get_areas():
     except json.JSONDecodeError:
         return jsonify({"error": "Invalid area data format"}), 500
 
+
 @app.route("/query")
 def query_page():
     return render_template("query.html")
@@ -634,24 +658,48 @@ def query_usage():
         usage = []
         
         if time_range == "today":
-            # Get today's readings with 30-minute intervals
-            date_str = current_date.strftime("%Y%m%d")
-            month_folder = current_date.strftime("%Y%m")
-            file_path = os.path.join("data/daily_readings", month_folder, f"readings_{date_str}.json")
+            # Get today's readings from cache first
+            current_date_str = current_date.strftime("%Y-%m-%d")
             
-            if os.path.exists(file_path):
-                with open(file_path, 'r') as f:
-                    data = json.load(f)
-                    if meter_id in data:
-                        readings = data[meter_id]["readings"]
-                        prev_value = None
-                        for reading in readings:
-                            time = reading["time"]
-                            current_value = reading["value"]
-                            if prev_value is not None:
-                                dates.append(time)
-                                usage.append(round(current_value - prev_value, 3))
-                            prev_value = current_value
+            # Filter today's readings from cache
+            today_readings = [
+                reading for reading in meter_system.reading_generator.daily_cache
+                if meter_id == reading.meter_id and 
+                datetime.datetime.fromisoformat(reading.reading_time).date() == current_date.date()
+            ]
+            
+            if today_readings:
+                # Sort readings by time
+                today_readings.sort(key=lambda x: x.reading_time)
+                
+                # Calculate intervals
+                prev_value = None
+                for reading in today_readings:
+                    time = datetime.datetime.fromisoformat(reading.reading_time).strftime("%H:%M")
+                    current_value = reading.meter_value
+                    if prev_value is not None:
+                        dates.append(time)
+                        usage.append(round(current_value - prev_value, 3))
+                    prev_value = current_value
+            else:
+                # Fallback to file if cache is empty
+                date_str = current_date.strftime("%Y%m%d")
+                month_folder = current_date.strftime("%Y%m")
+                file_path = os.path.join("data/daily_readings", month_folder, f"readings_{date_str}.json")
+                
+                if os.path.exists(file_path):
+                    with open(file_path, 'r') as f:
+                        data = json.load(f)
+                        if meter_id in data:
+                            readings = data[meter_id]["readings"]
+                            prev_value = None
+                            for reading in readings:
+                                time = reading["time"]
+                                current_value = reading["value"]
+                                if prev_value is not None:
+                                    dates.append(time)
+                                    usage.append(round(current_value - prev_value, 3))
+                                prev_value = current_value
                             
         elif time_range in ["last_7_days", "this_month", "last_month"]:
             if time_range == "last_7_days":
@@ -678,42 +726,56 @@ def query_usage():
                 
                 daily_usage = None
                 
-                if os.path.exists(daily_path):
-                    with open(daily_path, 'r') as f:
-                        data = json.load(f)
-                        if meter_id in data:
-                            readings = data[meter_id]["readings"]
-                            if len(readings) >= 2:
-                                daily_usage = readings[-1]["value"] - readings[0]["value"]
+                # For today's data, check cache first
+                if current_date.date() == read_current_time().date():
+                    today_readings = [
+                        reading for reading in meter_system.reading_generator.daily_cache
+                        if meter_id == reading.meter_id and 
+                        datetime.datetime.fromisoformat(reading.reading_time).date() == current_date.date()
+                    ]
+                    if today_readings:
+                        today_readings.sort(key=lambda x: x.reading_time)
+                        if len(today_readings) >= 2:
+                            daily_usage = today_readings[-1].meter_value - today_readings[0].meter_value
                 
-                elif os.path.exists(monthly_path):
-                    with open(monthly_path, 'r') as f:
-                        data = json.load(f)
-                        if meter_id in data:
-                            for day_data in data[meter_id]:
-                                if day_data["date"] == current_date.strftime("%Y-%m-%d"):
-                                    readings = day_data["readings"]
-                                    if len(readings) >= 2:
-                                        daily_usage = readings[-1]["value"] - readings[0]["value"]
-                                    break
-                
-                elif os.path.exists(hist_monthly_path):
-                    with open(hist_monthly_path, 'r') as f:
-                        data = json.load(f)
-                        if meter_id in data:
-                            month_key = current_date.strftime("%Y-%m")
-                            if month_key in data[meter_id]:
-                                readings = data[meter_id][month_key]["readings"]
-                                start_reading = None
-                                end_reading = None
-                                for reading in readings:
-                                    reading_date = datetime.datetime.strptime(reading["date"], "%Y-%m-%d").date()
-                                    if reading_date == current_date.date():
-                                        if start_reading is None:
-                                            start_reading = reading["value"]
-                                        end_reading = reading["value"]
-                                if start_reading is not None and end_reading is not None:
-                                    daily_usage = end_reading - start_reading
+                # If not found in cache, check files
+                if daily_usage is None:
+                    if os.path.exists(daily_path):
+                        with open(daily_path, 'r') as f:
+                            data = json.load(f)
+                            if meter_id in data:
+                                readings = data[meter_id]["readings"]
+                                if len(readings) >= 2:
+                                    daily_usage = readings[-1]["value"] - readings[0]["value"]
+                    
+                    elif os.path.exists(monthly_path):
+                        with open(monthly_path, 'r') as f:
+                            data = json.load(f)
+                            if meter_id in data:
+                                for day_data in data[meter_id]:
+                                    if day_data["date"] == current_date.strftime("%Y-%m-%d"):
+                                        readings = day_data["readings"]
+                                        if len(readings) >= 2:
+                                            daily_usage = readings[-1]["value"] - readings[0]["value"]
+                                        break
+                    
+                    elif os.path.exists(hist_monthly_path):
+                        with open(hist_monthly_path, 'r') as f:
+                            data = json.load(f)
+                            if meter_id in data:
+                                month_key = current_date.strftime("%Y-%m")
+                                if month_key in data[meter_id]:
+                                    readings = data[meter_id][month_key]["readings"]
+                                    start_reading = None
+                                    end_reading = None
+                                    for reading in readings:
+                                        reading_date = datetime.datetime.strptime(reading["date"], "%Y-%m-%d").date()
+                                        if reading_date == current_date.date():
+                                            if start_reading is None:
+                                                start_reading = reading["value"]
+                                            end_reading = reading["value"]
+                                    if start_reading is not None and end_reading is not None:
+                                        daily_usage = end_reading - start_reading
                 
                 if daily_usage is not None:
                     dates.append(current_date.strftime("%Y-%m-%d"))

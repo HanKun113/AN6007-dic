@@ -30,6 +30,29 @@
             </form>
         </div>
 
+        <div class="stats-container" id="statSection" style="display: none;">
+            <div class="stats-grid" >
+                <div class="stat-card">
+                    <div class="stat-title">Consumption in <br>Last 30 Minutes</div>
+                    <div class="stat-value" id="last30MinUsage">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">Consumption in <br>Today</div>
+                    <div class="stat-value" id="todayUsage">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">Consumption in <br>This Week</div>
+                    <div class="stat-value" id="weekUsage">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">Consumption in <br>This Month</div>
+                    <div class="stat-value" id="monthUsage">-</div>
+                </div>
+            </div>
+        </div>
+
+        
+
         <div class="form-container" id="querySection" style="display: none;">
             <form id="queryForm">
                 <div class="form-group">
@@ -141,9 +164,11 @@
             }
 
             state.setMeterId(meterId);
+            document.getElementById('statSection').style.display = 'grid';
             document.getElementById('querySection').style.display = 'block';
             document.getElementById('monthlyHistorySection').style.display = 'block';
             document.getElementById('loginForm').style.display = 'none';
+            await updateStats(meterId);
             
             // Fetch monthly history after successful login
             await fetchMonthlyHistory(meterId);
@@ -263,6 +288,36 @@
             console.error('Query error:', err);
         }
     });
+
+
+    async function updateStats(meterId) {
+    try {
+        const response = await fetch(`/get_stats?meter_id=${meterId}`);
+        
+        if (!response.ok) {
+            throw new Error('Failed to fetch statistics');
+        }
+
+        data = []
+
+        //data.last30Min = caches
+        //data.today = caches
+        //data.week = from json
+        //data.month = from json
+        
+        // 更新统计卡片的值
+        document.getElementById('last30MinUsage').textContent = `${data.last30Min.toFixed(1)} kWh`;
+        document.getElementById('todayUsage').textContent = `${data.today.toFixed(1)} kWh`;
+        document.getElementById('weekUsage').textContent = `${data.week.toFixed(1)} kWh`;
+        document.getElementById('monthUsage').textContent = `${data.month.toFixed(1)} kWh`;
+        
+    } catch (err) {
+        console.error('Statistics update error:', err);
+        ['last30MinUsage', 'todayUsage', 'weekUsage', 'monthUsage'].forEach(id => {
+            document.getElementById(id).textContent = 'Error';
+        });
+    }
+}
 </script>
 </body>
 </html>
