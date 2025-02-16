@@ -297,19 +297,13 @@
         if (!response.ok) {
             throw new Error('Failed to fetch statistics');
         }
-
-        data = []
-
-        //data.last30Min = caches
-        //data.today = caches
-        //data.week = from json
-        //data.month = from json
         
-        // 更新统计卡片的值
-        document.getElementById('last30MinUsage').textContent = `${data.last30Min.toFixed(1)} kWh`;
-        document.getElementById('todayUsage').textContent = `${data.today.toFixed(1)} kWh`;
-        document.getElementById('weekUsage').textContent = `${data.week.toFixed(1)} kWh`;
-        document.getElementById('monthUsage').textContent = `${data.month.toFixed(1)} kWh`;
+        const data = await response.json();  // 添加这行来解析 JSON 响应
+        
+        document.getElementById('last30MinUsage').textContent = data.last30Min === "-" ? "-" : `${data.last30Min} kWh`;
+        document.getElementById('todayUsage').textContent = data.today === "-" ? "-" : `${data.today} kWh`;
+        document.getElementById('weekUsage').textContent = data.week === "-" ? "-" : `${data.week} kWh`;
+        document.getElementById('monthUsage').textContent = data.month === "-" ? "-" : `${data.month} kWh`;
         
     } catch (err) {
         console.error('Statistics update error:', err);
