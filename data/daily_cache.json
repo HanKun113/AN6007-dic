@@ -2,83 +2,83 @@
   "111-111-111": [
     {
       "reading_time": "2025-04-13T01:30:00",
-      "meter_value": 11.346
+      "meter_value": 7837.639
     },
     {
       "reading_time": "2025-04-13T02:00:00",
-      "meter_value": 12.159
+      "meter_value": 7837.979
     },
     {
       "reading_time": "2025-04-13T02:30:00",
-      "meter_value": 12.453
+      "meter_value": 7838.675
     },
     {
       "reading_time": "2025-04-13T03:00:00",
-      "meter_value": 13.439
+      "meter_value": 7839.099
     },
     {
       "reading_time": "2025-04-13T03:30:00",
-      "meter_value": 14.053
+      "meter_value": 7839.993
     },
     {
       "reading_time": "2025-04-13T04:00:00",
-      "meter_value": 14.531
+      "meter_value": 7840.385
     },
     {
       "reading_time": "2025-04-13T04:30:00",
-      "meter_value": 14.955
+      "meter_value": 7840.468
     },
     {
       "reading_time": "2025-04-13T05:00:00",
-      "meter_value": 15.954
+      "meter_value": 7840.985
     },
     {
       "reading_time": "2025-04-13T05:30:00",
-      "meter_value": 16.453
+      "meter_value": 7841.535
     },
     {
       "reading_time": "2025-04-13T06:00:00",
-      "meter_value": 17.42
+      "meter_value": 7842.2
     },
     {
       "reading_time": "2025-04-13T06:30:00",
-      "meter_value": 18.132
+      "meter_value": 7842.305
     },
     {
       "reading_time": "2025-04-13T07:00:00",
-      "meter_value": 18.878
+      "meter_value": 7843.064
     },
     {
       "reading_time": "2025-04-13T07:30:00",
-      "meter_value": 19.579
+      "meter_value": 7843.332
     },
     {
       "reading_time": "2025-04-13T08:00:00",
-      "meter_value": 20.443
+      "meter_value": 7843.839
     },
     {
       "reading_time": "2025-04-13T08:30:00",
-      "meter_value": 21.215
+      "meter_value": 7844.459
     },
     {
       "reading_time": "2025-04-13T09:00:00",
-      "meter_value": 21.363
+      "meter_value": 7845.047
     },
     {
       "reading_time": "2025-04-13T09:30:00",
-      "meter_value": 21.902
+      "meter_value": 7845.343
     },
     {
       "reading_time": "2025-04-13T10:00:00",
-      "meter_value": 22.488
+      "meter_value": 7845.392
     },
     {
       "reading_time": "2025-04-13T10:30:00",
-      "meter_value": 23.428
+      "meter_value": 7845.971
     },
     {
       "reading_time": "2025-04-13T11:00:00",
-      "meter_value": 24.146
+      "meter_value": 7846.709
     }
   ]
 }

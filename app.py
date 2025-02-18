@@ -115,6 +115,29 @@ class ReadingGenerator:
         self.latest_readings: Dict[str, float] = {}
         self.daily_cache: List[MeterReading] = []
 
+        self._initialize_latest_readings()
+
+    def _initialize_latest_readings(self):
+        """从 daily_cache 文件初始化 latest_readings"""
+        cache_file = os.path.join(os.path.dirname(self.time_manager.current_time_file), "daily_cache.json")
+        
+        if os.path.exists(cache_file):
+            try:
+                with open(cache_file, "r", encoding="utf-8") as f:
+                    cache_data = json.load(f)
+                
+                for meter_id, readings in cache_data.items():
+                    if readings:  
+                        sorted_readings = sorted(
+                            readings, 
+                            key=lambda x: x["reading_time"],
+                            reverse=True  
+                        )
+                        self.latest_readings[meter_id] = sorted_readings[0]["meter_value"]
+                        
+            except (json.JSONDecodeError, FileNotFoundError) as e:
+                print(f"Error loading daily_cache file: {str(e)}")
+
     def _calculate_next_time(
         self, current_time: datetime.datetime, increment_unit: str, increment_value: int
     ) -> datetime.datetime:
