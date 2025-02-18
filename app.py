@@ -461,6 +461,68 @@ class MonthlyProcessor:
         while current <= end:
             self.archive(current)
             current += relativedelta(months=1)
+# ==========================
+# CacheProcessor
+# ==========================
+class CacheProcessor:
+    def __init__(self, directory_manager: DirectoryManager):
+        self.directory_manager = directory_manager
+        self.cache_file = os.path.join(self.directory_manager.data_dir, "daily_cache.json")
+
+    def save_cache(self, daily_cache: List[MeterReading]):
+        """
+        将 daily_cache 保存到文件中
+        """
+        if not daily_cache:
+            return
+
+        # 转换 MeterReading 对象为可序列化的字典
+        cache_data = {}
+        for reading in daily_cache:
+            meter_id = reading.meter_id
+            if meter_id not in cache_data:
+                cache_data[meter_id] = []
+            
+            cache_data[meter_id].append({
+                "reading_time": reading.reading_time,
+                "meter_value": reading.meter_value
+            })
+
+        # 保存到文件
+        with open(self.cache_file, "w", encoding="utf-8") as f:
+            json.dump(cache_data, f, ensure_ascii=False, indent=2)
+
+    def load_cache(self) -> List[MeterReading]:
+        """
+        从文件中加载 daily_cache
+        """
+        if not os.path.exists(self.cache_file):
+            return []
+
+        try:
+            with open(self.cache_file, "r", encoding="utf-8") as f:
+                cache_data = json.load(f)
+
+            # 转换回 MeterReading 对象
+            daily_cache = []
+            for meter_id, readings in cache_data.items():
+                for reading in readings:
+                    daily_cache.append(MeterReading(
+                        meter_id=meter_id,
+                        reading_time=reading["reading_time"],
+                        meter_value=reading["meter_value"]
+                    ))
+
+            return daily_cache
+        except (json.JSONDecodeError, FileNotFoundError):
+            return []
+
+    def clear_cache(self):
+        """
+        清除缓存文件
+        """
+        if os.path.exists(self.cache_file):
+            os.remove(self.cache_file)
 
 # ==========================
 # Smart Meter System: Facade class combining all modules
@@ -474,6 +536,9 @@ class SmartMeterSystem:
         self.reading_generator = ReadingGenerator(self.time_manager, self.account_manager)
         self.daily_processor = DailyProcessor(self.directory_manager)
         self.monthly_processor = MonthlyProcessor(self.directory_manager)
+        self.cache_processor = CacheProcessor(self.directory_manager)
+
+        self.reading_generator.daily_cache = self.cache_processor.load_cache()
 
     def register_meter(self, meter_id: str, area: str, dwelling: str) -> dict:
         current_time = self.time_manager.get_current_time()
@@ -491,6 +556,8 @@ class SmartMeterSystem:
         # Collect new readings
         result = self.reading_generator.collect(increment_unit, increment_value)
         new_time = datetime.datetime.fromisoformat(result["new_time"])
+
+        self.cache_processor.save_cache(self.reading_generator.daily_cache)
         
         # If day changes during collection
         if old_time.date() != new_time.date():
@@ -514,6 +581,8 @@ class SmartMeterSystem:
                 if datetime.datetime.fromisoformat(reading.reading_time).date() == new_time.date()
             ]
         
+        self.cache_processor.save_cache(self.reading_generator.daily_cache)
+
         # If month changes during collection
         if old_time.month != new_time.month:
             self.monthly_processor.archive_all(old_time,new_time)
@@ -535,6 +604,7 @@ class SmartMeterSystem:
             # Clear cache
             self.reading_generator.latest_readings.clear()
             self.reading_generator.daily_cache.clear()
+            self.cache_processor.clear_cache()
             return True
         except Exception as e:
             import traceback
