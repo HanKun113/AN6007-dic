@@ -360,6 +360,41 @@ class MonthlyProcessor:
             f"daily_{last_month_first.strftime('%Y%m')}_detail.json"
         )
         
+        yesterday_file = os.path.join(
+            last_month_dir,
+            f"readings_{last_month.strftime('%Y%m%d')}.json"
+        )
+        monthly_detail_file = os.path.join(
+            last_month_dir,
+            f"daily_{last_month_first.strftime('%Y%m')}_detail.json"
+        )
+
+        if os.path.exists(yesterday_file):
+            monthly_detail_data = {}
+            if os.path.exists(monthly_detail_file):
+                with open(monthly_detail_file, "r", encoding="utf-8") as f:
+                    try:
+                        monthly_detail_data = json.load(f)
+                    except json.JSONDecodeError:
+                        monthly_detail_data = {}
+
+            with open(yesterday_file, "r", encoding="utf-8") as f:
+                try:
+                    yesterday_data = json.load(f)
+                    for meter_id, meter_data in yesterday_data.items():
+                        if meter_id not in monthly_detail_data:
+                            monthly_detail_data[meter_id] = []
+                        monthly_detail_data[meter_id].append(meter_data)
+                except json.JSONDecodeError:
+                    pass
+
+            os.makedirs(os.path.dirname(monthly_detail_file), exist_ok=True)
+            with open(monthly_detail_file, "w", encoding="utf-8") as f:
+                json.dump(monthly_detail_data, f, ensure_ascii=False, indent=2)
+
+            os.remove(yesterday_file)
+
+
         # Create year directory in month_readings
         year_dir = os.path.join(
             self.directory_manager.monthly_readings_dir,
