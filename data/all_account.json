@@ -1,14 +1,8 @@
 [
   {
     "meter_ID": "111-111-111",
-    "area": "Downtown",
-    "dwelling": "1",
-    "register_time": "2024-05-01T00:00:00"
-  },
-  {
-    "meter_ID": "666-666-666",
-    "area": "Jurong East",
-    "dwelling": "5",
+    "area": "Sembawang",
+    "dwelling": "2",
     "register_time": "2024-05-01T00:00:00"
   }
 ]

@@ -42,14 +42,10 @@
             <button onclick="location.href='/'" style="background-color: var(--secondary-color)">Return Home</button>
         </div>
 
-        <div class="result-container">
-            <h2>Reading Results</h2>
-            <pre id="meterReadingResult"></pre>
-        </div>
     </div>
 
     <script>
-        // 获取当前时间
+
         async function getCurrentTime() {
             const timeElement = document.getElementById('currentTime');
             try {
@@ -67,19 +63,16 @@
             }
         }
 
-        // 收集电表读数
+
         async function collectMeterReading() {
-            const resultElement = document.getElementById("meterReadingResult");
             const incrementValue = parseInt(document.getElementById("incrementValue").value);
             const incrementUnit = document.getElementById("incrementUnit").value;
             
-            // 输入验证
+
             if (isNaN(incrementValue) || incrementValue < 1) {
-                resultElement.textContent = "Error: Please enter a valid increment value (minimum 1)";
+                alert('Error: Please enter a valid increment value (minimum 1)');
                 return;
             }
-            
-            resultElement.textContent = "Collecting readings...";
             
             try {
                 const response = await fetch('/meter_reading', { 
@@ -99,21 +92,17 @@
                     throw new Error(data.error || data.message || 'Server returned an error');
                 }
                 
-                resultElement.textContent = JSON.stringify(data, null, 2);
-                // 成功后更新时间显示
+
                 await getCurrentTime();
+                alert('Collection successful!');
                 
             } catch (err) {
                 console.error('Error collecting readings:', err);
-                resultElement.textContent = 'Error: ' + (err.message || 'Failed to collect readings. Please try again.');
+                alert('Failed to collect readings. Please try again.');
             }
         }
 
-        // 页面加载时获取当前时间
         document.addEventListener('DOMContentLoaded', getCurrentTime);
-
-        // 每30秒自动更新时间
-        setInterval(getCurrentTime, 30000);
     </script>
 </body>
 </html>
