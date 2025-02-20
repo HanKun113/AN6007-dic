@@ -118,7 +118,7 @@ class ReadingGenerator:
         self._initialize_latest_readings()
 
     def _initialize_latest_readings(self):
-        """从 daily_cache 文件初始化 latest_readings"""
+        """Initialize latest_readings from daily_cache file"""
         cache_file = os.path.join(os.path.dirname(self.time_manager.current_time_file), "daily_cache.json")
         
         if os.path.exists(cache_file):
@@ -514,8 +514,8 @@ class MonthlyProcessor:
         if start > end:
             start, end = end, start
 
-        # 从开始时间遍历到结束时间
-        current = start + relativedelta(months=1)  # 从下个月开始
+        # Traverse from the start time to the end time
+        current = start + relativedelta(months=1)  # Starting next month
         while current <= end:
             self.archive(current)
             current += relativedelta(months=1)
@@ -529,12 +529,12 @@ class CacheProcessor:
 
     def save_cache(self, daily_cache: List[MeterReading]):
         """
-        将 daily_cache 保存到文件中
+        Save daily_cache to a file
         """
         if not daily_cache:
             return
 
-        # 转换 MeterReading 对象为可序列化的字典
+        # Convert a MeterReading object to a serializable dictionary
         cache_data = {}
         for reading in daily_cache:
             meter_id = reading.meter_id
@@ -546,13 +546,13 @@ class CacheProcessor:
                 "meter_value": reading.meter_value
             })
 
-        # 保存到文件
+        # Save to file
         with open(self.cache_file, "w", encoding="utf-8") as f:
             json.dump(cache_data, f, ensure_ascii=False, indent=2)
 
     def load_cache(self) -> List[MeterReading]:
         """
-        从文件中加载 daily_cache
+        Load daily_cache from file
         """
         if not os.path.exists(self.cache_file):
             return []
@@ -561,7 +561,7 @@ class CacheProcessor:
             with open(self.cache_file, "r", encoding="utf-8") as f:
                 cache_data = json.load(f)
 
-            # 转换回 MeterReading 对象
+            # Convert back to a MeterReading object
             daily_cache = []
             for meter_id, readings in cache_data.items():
                 for reading in readings:
@@ -577,7 +577,7 @@ class CacheProcessor:
 
     def clear_cache(self):
         """
-        清除缓存文件
+        Clear cache files
         """
         if os.path.exists(self.cache_file):
             os.remove(self.cache_file)
@@ -983,18 +983,18 @@ def monthly_history():
                         month_key = check_date.strftime("%Y-%m")
                         if month_key in data[meter_id]:
                             readings = data[meter_id][month_key]["readings"]
-                            if len(readings) >= 2:  # 确保有月初和月末的读数
-                                # 计算月度用量
+                            if len(readings) >= 2:  # Make sure you have readings at the beginning and end of the month
+                                # Calculate monthly usage
                                 month_usage = readings[-1]["value"] - readings[0]["value"]
                                 months.append(month_key)
                                 usage.append(round(month_usage, 3))
-                                # 计算首末日期之间的天数
+                                # Calculate the number of days between the first and last dates
                                 start_date = datetime.datetime.strptime(readings[0]["date"], "%Y-%m-%d")
                                 end_date = datetime.datetime.strptime(readings[-1]["date"], "%Y-%m-%d")
-                                days_count = (end_date - start_date).days + 1  # +1 是因为要包含首尾两天
+                                days_count = (end_date - start_date).days + 1  # +1 Because it includes the first and last two days.
                                 days.append(days_count)
             
-            # 如果月度文件没有找到，则检查日度读数文件
+            # If the monthly file is not found, check the daily readings file
             else:
                 monthly_detail = os.path.join("data/daily_readings", month_folder, f"daily_{month_folder}_detail.json")
                 if os.path.exists(monthly_detail):
@@ -1008,7 +1008,7 @@ def monthly_history():
                             usage.append(round(month_usage, 3))
                             days.append(len(data[meter_id]))
         
-        # 排序
+        # Sorting
         months_sorted = []
         usage_sorted = []
         days_sorted = []
